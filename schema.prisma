@@ -1,0 +1,427 @@
+// =============================================================================
+// SUB Connect — Prisma Schema
+// Production-ready university professional network database
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  STUDENT
+  ALUMNI
+  ADMIN
+}
+
+enum ConnectionStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum MentorshipStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  COMPLETED
+}
+
+enum JobType {
+  FULL_TIME
+  PART_TIME
+  INTERNSHIP
+  CONTRACT
+  REMOTE
+}
+
+enum ApplicationStatus {
+  APPLIED
+  REVIEWING
+  SHORTLISTED
+  REJECTED
+  ACCEPTED
+}
+
+enum MessageStatus {
+  SENT
+  DELIVERED
+  SEEN
+}
+
+enum NotificationType {
+  LIKE
+  COMMENT
+  JOB_APPLIED
+  MENTORSHIP_REQUEST
+  MENTORSHIP_ACCEPTED
+  CONNECTION_REQUEST
+  CONNECTION_ACCEPTED
+  MESSAGE
+}
+
+// ─── Core Models ──────────────────────────────────────────────────────────────
+
+model User {
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  password           String
+  role               UserRole  @default(STUDENT)
+  isEmailVerified    Boolean   @default(false)
+  emailVerifyToken   String?
+  resetPasswordToken String?
+  resetTokenExpiry   DateTime?
+  isActive           Boolean   @default(true)
+  lastSeen           DateTime  @default(now())
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  profile          Profile?
+  posts            Post[]
+  comments         Comment[]
+  likes            Like[]
+  sentMessages     Message[]          @relation("SentMessages")
+  receivedMessages Message[]          @relation("ReceivedMessages")
+  jobPostings      Job[]              @relation("PostedJobs")
+  jobApplications  JobApplication[]
+  mentorships      Mentorship[]       @relation("MentorRelation")
+  menteeships      Mentorship[]       @relation("MenteeRelation")
+  connectionsFrom  Connection[]       @relation("ConnectionFrom")
+  connectionsTo    Connection[]       @relation("ConnectionTo")
+  notifications    Notification[]
+  chatRooms        ChatParticipant[]
+  savedJobs        SavedJob[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model Profile {
+  id              String  @id @default(cuid())
+  userId          String  @unique
+  user            User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  firstName       String
+  lastName        String
+  bio             String?
+  avatarUrl       String?
+  coverUrl        String?
+  location        String?
+  website         String?
+  phone           String?
+  isOpenToWork    Boolean @default(false)
+  isOpenToMentor  Boolean @default(false)
+  profileStrength Int     @default(0)
+
+  // Student-specific
+  department       String?
+  semester         Int?
+  studentId        String?
+  expectedGradYear Int?
+
+  // Alumni-specific
+  graduationYear  Int?
+  currentCompany  String?
+  jobTitle        String?
+  industry        String?
+  yearsExperience Int?
+
+  skills      ProfileSkill[]
+  experiences Experience[]
+  education   Education[]
+  projects    Project[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([department])
+  @@index([currentCompany])
+  @@map("profiles")
+}
+
+model Skill {
+  id       String         @id @default(cuid())
+  name     String         @unique
+  category String?
+  profiles ProfileSkill[]
+
+  @@index([name])
+  @@map("skills")
+}
+
+model ProfileSkill {
+  id        String  @id @default(cuid())
+  profileId String
+  skillId   String
+  level     String?
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  skill     Skill   @relation(fields: [skillId], references: [id])
+
+  @@unique([profileId, skillId])
+  @@map("profile_skills")
+}
+
+model Experience {
+  id          String    @id @default(cuid())
+  profileId   String
+  profile     Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  title       String
+  company     String
+  location    String?
+  startDate   DateTime
+  endDate     DateTime?
+  isCurrent   Boolean   @default(false)
+  description String?
+
+  @@index([profileId])
+  @@map("experiences")
+}
+
+model Education {
+  id          String  @id @default(cuid())
+  profileId   String
+  profile     Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  institution String
+  degree      String?
+  field       String?
+  startYear   Int
+  endYear     Int?
+  grade       String?
+
+  @@index([profileId])
+  @@map("educations")
+}
+
+model Project {
+  id          String    @id @default(cuid())
+  profileId   String
+  profile     Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  repoUrl     String?
+  liveUrl     String?
+  techStack   String[]
+  startDate   DateTime?
+  endDate     DateTime?
+
+  @@index([profileId])
+  @@map("projects")
+}
+
+// ─── Social Feed ──────────────────────────────────────────────────────────────
+
+model Post {
+  id         String    @id @default(cuid())
+  authorId   String
+  author     User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content    String
+  mediaUrls  String[]
+  tags       String[]
+  isRepost   Boolean   @default(false)
+  repostOfId String?
+  repostOf   Post?     @relation("Reposts", fields: [repostOfId], references: [id])
+  reposts    Post[]    @relation("Reposts")
+  visibility String    @default("public")
+  likes      Like[]
+  comments   Comment[]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([authorId])
+  @@index([createdAt(sort: Desc)])
+  @@map("posts")
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@map("likes")
+}
+
+model Comment {
+  id        String    @id @default(cuid())
+  authorId  String
+  postId    String
+  parentId  String?
+  content   String
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies   Comment[] @relation("CommentReplies")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([postId])
+  @@map("comments")
+}
+
+// ─── Jobs ─────────────────────────────────────────────────────────────────────
+
+model Job {
+  id           String           @id @default(cuid())
+  posterId     String
+  poster       User             @relation("PostedJobs", fields: [posterId], references: [id], onDelete: Cascade)
+  title        String
+  company      String
+  location     String?
+  description  String
+  requirements String[]
+  skills       String[]
+  type         JobType
+  salary       String?
+  deadline     DateTime?
+  isActive     Boolean          @default(true)
+  applications JobApplication[]
+  savedBy      SavedJob[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([posterId])
+  @@index([isActive])
+  @@index([createdAt(sort: Desc)])
+  @@map("jobs")
+}
+
+model JobApplication {
+  id          String            @id @default(cuid())
+  jobId       String
+  applicantId String
+  job         Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  applicant   User              @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  coverLetter String?
+  resumeUrl   String?
+  status      ApplicationStatus @default(APPLIED)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@unique([jobId, applicantId])
+  @@index([jobId])
+  @@map("job_applications")
+}
+
+model SavedJob {
+  id        String   @id @default(cuid())
+  userId    String
+  jobId     String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, jobId])
+  @@map("saved_jobs")
+}
+
+// ─── Chat ─────────────────────────────────────────────────────────────────────
+
+model ChatRoom {
+  id           String            @id @default(cuid())
+  isGroup      Boolean           @default(false)
+  name         String?
+  participants ChatParticipant[]
+  messages     Message[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@map("chat_rooms")
+}
+
+model ChatParticipant {
+  id         String   @id @default(cuid())
+  roomId     String
+  userId     String
+  room       ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadAt DateTime @default(now())
+  joinedAt   DateTime @default(now())
+
+  @@unique([roomId, userId])
+  @@index([userId])
+  @@map("chat_participants")
+}
+
+model Message {
+  id         String        @id @default(cuid())
+  roomId     String
+  senderId   String
+  receiverId String?
+  content    String
+  mediaUrl   String?
+  status     MessageStatus @default(SENT)
+  isDeleted  Boolean       @default(false)
+  room       ChatRoom      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender     User          @relation("SentMessages", fields: [senderId], references: [id])
+  receiver   User?         @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  createdAt  DateTime      @default(now())
+
+  @@index([roomId])
+  @@index([createdAt(sort: Desc)])
+  @@map("messages")
+}
+
+// ─── Mentorship ───────────────────────────────────────────────────────────────
+
+model Mentorship {
+  id        String           @id @default(cuid())
+  mentorId  String
+  menteeId  String
+  message   String?
+  status    MentorshipStatus @default(PENDING)
+  mentor    User             @relation("MentorRelation", fields: [mentorId], references: [id])
+  mentee    User             @relation("MenteeRelation", fields: [menteeId], references: [id])
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@unique([mentorId, menteeId])
+  @@index([mentorId])
+  @@map("mentorships")
+}
+
+// ─── Connections ──────────────────────────────────────────────────────────────
+
+model Connection {
+  id        String           @id @default(cuid())
+  fromId    String
+  toId      String
+  status    ConnectionStatus @default(PENDING)
+  from      User             @relation("ConnectionFrom", fields: [fromId], references: [id])
+  to        User             @relation("ConnectionTo", fields: [toId], references: [id])
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@unique([fromId, toId])
+  @@index([fromId])
+  @@index([toId])
+  @@map("connections")
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String?
+  data      Json?
+  isRead    Boolean          @default(false)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
