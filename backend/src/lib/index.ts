@@ -292,3 +292,5 @@ async function broadcastPresence(io: Server, userId: string, isOnline: boolean) 
 export function isUserOnline(userId: string): boolean {
   return (onlineUsers.get(userId)?.size ?? 0) > 0;
 }
+
+export { prisma, logger, AppError, cache, createNotification, sendEmail };
