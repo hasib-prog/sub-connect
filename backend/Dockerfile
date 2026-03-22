@@ -15,7 +15,7 @@ COPY . .
 
 RUN npx prisma generate
 
-EXPOSE 3000
+EXPOSE 8080
 
-CMD ["sh", "-c", "npx prisma migrate deploy && ts-node --esModuleInterop src/server.ts"]
+CMD ["ts-node", "--esModuleInterop", "src/server.ts"]
 
