@@ -3,6 +3,7 @@ WORKDIR /app
 RUN apk add --no-cache openssl
 COPY package.json ./
 RUN npm install
+RUN npm install -g ts-node typescript
 COPY . .
 RUN npx prisma generate
-CMD ["node", "-e", "const express = require('express'); const app = express(); app.get('/health', (req, res) => res.json({status:'ok'})); app.listen(process.env.PORT || 8080, '0.0.0.0', () => console.log('Server running on port ' + (process.env.PORT || 8080)));"]
+CMD ["sh", "-c", "npx prisma migrate deploy && ts-node --transpile-only --esModuleInterop src/server.ts"]
