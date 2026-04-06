@@ -1,3 +1,13 @@
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err.message, err.stack);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason: any) => {
+  console.error('UNHANDLED REJECTION:', reason);
+  process.exit(1);
+});
+
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -5,8 +15,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
-import { setupSocketHandlers } from './sockets';
-import { errorHandler } from './middleware/errorHandler';
+
+console.log('Loading routes...');
 
 import authRoutes from './routes/v1/auth';
 import userRoutes from './routes/v1/users';
@@ -17,16 +27,26 @@ import mentorshipRoutes from './routes/v1/mentorship';
 import searchRoutes from './routes/v1/search';
 import notificationRoutes from './routes/v1/notifications';
 import connectionRoutes from './routes/v1/connections';
+import { setupSocketHandlers } from './sockets';
+import { errorHandler } from './middleware/errorHandler';
+
+console.log('Routes loaded. Setting up Express...');
 
 const app = express();
 const httpServer = createServer(app);
 
 const io = new Server(httpServer, {
-  cors: { origin: process.env.FRONTEND_URL || '*', credentials: true },
+  cors: {
+    origin: process.env.FRONTEND_URL || '*',
+    credentials: true,
+  },
 });
 
 app.use(helmet());
-app.use(cors({ origin: process.env.FRONTEND_URL || '*', credentials: true }));
+app.use(cors({
+  origin: process.env.FRONTEND_URL || '*',
+  credentials: true,
+}));
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -51,8 +71,10 @@ app.use(errorHandler);
 
 const PORT = parseInt(process.env.PORT || '8080', 10);
 
+console.log('Starting server on port', PORT);
+
 httpServer.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
 });
 
 export { io };
